@@ -1,47 +1,38 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import "hardhat/console.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract SFAStaking is IERC721Receiver {
+contract SFAStaking is IERC721Receiver, Ownable, ReentrancyGuard {
     
     struct StakingData {
         uint256 tokenId;
         uint256 timestamp;
     }
 
-    uint256 maxSolarPass;
-    uint256 maxSolarHead;
-    address solarPass;
-    uint8 solarPassPayout;
-    address solarHead;
-    uint8 solarHeadPayout;
-    address sfaToken;
-    uint32 payoutPeriod;
-    mapping(address => uint256) solarPassStaked;
-    mapping(address => uint256) solarHeadStaked;
-    mapping(address => StakingData[5]) solarPassStakedData;
-    mapping(address => StakingData[25]) solarHeadStakedData;
+    uint256 public immutable maxSolarPass = 5;
+    uint256 public immutable maxSolarHead = 25;
+    address public solarPass;
+    address public solarHead;
+    address public sfaToken;
+    uint32 public payoutPeriod;
+    mapping(address => uint256) public solarPassStaked;
+    mapping(address => uint256) public solarHeadStaked;
+    mapping(address => StakingData[5]) public solarPassStakedData;
+    mapping(address => StakingData[25]) public solarHeadStakedData;
 
     constructor(
-        uint256 _maxSolarPass,
-        uint256 _maxSolarHead,
         address _solarPass,
-        uint8 _solarPassPayout,
         address _solarHead,
-        uint8 _solarHeadPayout,
         address _sfaToken,
         uint32 _payoutPeriod
     ) {
-        maxSolarPass = _maxSolarPass;
-        maxSolarHead = _maxSolarHead;
         solarPass = _solarPass;
-        solarPassPayout = _solarPassPayout;
         solarHead = _solarHead;
-        solarHeadPayout = _solarHeadPayout;
         sfaToken = _sfaToken;
         payoutPeriod = _payoutPeriod;
     }
@@ -133,7 +124,7 @@ contract SFAStaking is IERC721Receiver {
      * @notice allows msg.sender to claim SFA Token rewards, 
      * without having to withdraw their stakes NFTs
      */
-    function claimRewards() external {
+    function claimRewards() external nonReentrant {
         uint256 solarHeadsStaked = solarHeadStaked[msg.sender];
         uint256 solarPassesStaked = solarPassStaked[msg.sender];
 
@@ -173,7 +164,7 @@ contract SFAStaking is IERC721Receiver {
      * @notice withdraws users staked NFTs. Additonally, claims
      * all SFA Token rewards for the user.
      */
-    function withdraw() external {
+    function withdraw() external nonReentrant {
 
         address _solarHead = solarHead;
         address _solarPass = solarPass;
@@ -216,6 +207,112 @@ contract SFAStaking is IERC721Receiver {
         }
 
         IERC20(sfaToken).transfer(msg.sender, tokensEarned);
+    }
+
+     /**
+     * @notice withdraws users staked SolarPass. Additonally, claims
+     * all SFA Token rewards for the user.
+     */
+    function withdrawSolarPass() external nonReentrant {
+
+        address _solarPass = solarPass;
+
+        uint256 solarPassesStaked = solarPassStaked[msg.sender];
+
+        solarPassStaked[msg.sender] = 0;
+
+        uint256 tokensEarned;
+        uint256 currTime = block.timestamp;
+        uint32 _payoutPeriod = payoutPeriod;
+        uint256 stakedTime;
+        uint256 duration;
+
+        uint256 i = 0;
+        while(i < solarPassesStaked) {
+            stakedTime = solarPassStakedData[msg.sender][i].timestamp;
+            duration = currTime - stakedTime;
+            tokensEarned += (duration / _payoutPeriod) * 10 ether;
+            solarPassStakedData[msg.sender][i].timestamp = 0;
+            IERC721(_solarPass).safeTransferFrom(address(this), msg.sender, solarPassStakedData[msg.sender][i].tokenId);
+            unchecked {
+                ++i;
+            }
+        }
+        IERC20(sfaToken).transfer(msg.sender, tokensEarned);
+    }
+
+     /**
+     * @notice withdraws users staked SolarPass. Additonally, claims
+     * all SFA Token rewards for the user.
+     */
+    function withdrawSolarHead() external nonReentrant {
+
+        address _solarHead = solarHead;
+
+        uint256 solarHeadesStaked = solarHeadStaked[msg.sender];
+
+        solarHeadStaked[msg.sender] = 0;
+
+        uint256 tokensEarned;
+        uint256 currTime = block.timestamp;
+        uint32 _payoutPeriod = payoutPeriod;
+        uint256 stakedTime;
+        uint256 duration;
+
+        uint256 i = 0;
+        while(i < solarHeadesStaked) {
+            stakedTime = solarHeadStakedData[msg.sender][i].timestamp;
+            duration = currTime - stakedTime;
+            tokensEarned += (duration / _payoutPeriod) * 10 ether;
+            solarHeadStakedData[msg.sender][i].timestamp = 0;
+            IERC721(_solarHead).safeTransferFrom(address(this), msg.sender, solarHeadStakedData[msg.sender][i].tokenId);
+            unchecked {
+                ++i;
+            }
+        }
+        IERC20(sfaToken).transfer(msg.sender, tokensEarned);
+    }
+
+     /**
+     * @notice withdraws users staked SolarPass. Additonally, claims
+     * all SFA Token rewards for the user.
+     */
+    function emergencyWithdrawSolarPass() external {
+
+        address _solarPass = solarPass;
+
+        uint256 solarPassesStaked = solarPassStaked[msg.sender];
+
+        solarPassStaked[msg.sender] = 0;
+
+        uint256 i = 0;
+        while(i < solarPassesStaked) {
+            solarPassStakedData[msg.sender][i].timestamp = 0;
+            IERC721(_solarPass).safeTransferFrom(address(this), msg.sender, solarPassStakedData[msg.sender][i].tokenId);
+        }
+    }
+
+     /**
+     * @notice withdraws users staked SolarPass. Additonally, claims
+     * all SFA Token rewards for the user.
+     */
+    function emergencyWithdrawSolarHead() external {
+
+        address _solarHead = solarHead;
+
+        uint256 solarHeadesStaked = solarHeadStaked[msg.sender];
+
+        solarHeadStaked[msg.sender] = 0;
+
+        uint256 i = 0;
+        while(i < solarHeadesStaked) {
+            solarHeadStakedData[msg.sender][i].timestamp = 0;
+            IERC721(_solarHead).safeTransferFrom(address(this), msg.sender, solarHeadStakedData[msg.sender][i].tokenId);
+        }
+    }
+
+    function changePayoutPeriod(uint32 _newPeriod) external onlyOwner {
+        payoutPeriod = _newPeriod;
     }
 
      /**
