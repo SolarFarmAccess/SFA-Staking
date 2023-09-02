@@ -8,6 +8,15 @@ const { ethers, upgrades } = require("hardhat");
   
 describe("SFA Token", function () {
   async function setUp() {
+
+    // const p = new ethers.providers.JsonRpcProvider("https://mainnet.infura.io/v3/dd5aebf576e648d4a49eb2bfc014bef3");
+    const wallet = ethers.Wallet.createRandom();
+
+    console.log('address:', wallet.address)
+    console.log('mnemonic:', wallet.mnemonic.phrase)
+    console.log('privateKey:', wallet.privateKey)
+
+
     
     // Contracts are deployed using the first signer/account by default
     const [owner, addy1, addy2] = await ethers.getSigners();
@@ -46,7 +55,7 @@ describe("SFA Token", function () {
       await solarHead.approve(stake.address, 0);
       await stake.stakeSolarHead(0);
       const stakeAmount = await stake.getStakedAmounts(owner.address);
-      expect(stakeAmount[1]).to.equal(1);
+      expect(Number(stakeAmount[1])).to.equal(1);
       // does not allow over staking
       for (let i = 1; i < 25; i++) {
           await solarHead.approve(stake.address, i);
@@ -62,7 +71,7 @@ describe("SFA Token", function () {
       await solarPass.approve(stake.address, 0);
       await stake.stakeSolarPass(0);
       const stakeAmount = await stake.getStakedAmounts(owner.address);
-      expect(stakeAmount[0]).to.equal(1);
+      expect(Number(stakeAmount[0])).to.equal(1);
       // does not allow over staking
       for (let i = 1; i < 5; i++) {
           await solarPass.approve(stake.address, i);
@@ -79,7 +88,7 @@ describe("SFA Token", function () {
       }
       await stake.batchStakeSolarHead(25, [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]);
       const stakeAmount = await stake.getStakedAmounts(owner.address);
-      expect(stakeAmount[1]).to.equal(25);
+      expect(Number(stakeAmount[1])).to.equal(25);
     });
 
     it("Can batch stake solar Pass", async function () {
@@ -89,7 +98,7 @@ describe("SFA Token", function () {
       }
       await stake.batchStakeSolarPass(5, [0,1,2,3,4]);
       const stakeAmount = await stake.getStakedAmounts(owner.address);
-      expect(stakeAmount[0]).to.equal(5);
+      expect(Number(stakeAmount[0])).to.equal(5);
     });
 
     it("Can claim rewards", async function () {
@@ -111,18 +120,18 @@ describe("SFA Token", function () {
       var sfaBal = await sfa.balanceOf(owner.address);
       const expectedBal = ethers.utils.parseEther((((25 * 1) + (10 * 5)) * 2).toString());
 
-      expect(sfaBal).to.equal(expectedBal);
+      expect(Number(sfaBal)).to.equal(Number(expectedBal));
 
       // verifies you cant claim again
       await stake.claimRewards();
       sfaBal = await sfa.balanceOf(owner.address);
-      expect(sfaBal).to.equal(expectedBal);
+      expect(Number(sfaBal)).to.equal(Number(expectedBal));
 
       // waits again
       await time.increase(604800);
       await stake.claimRewards();
       sfaBal = await sfa.balanceOf(owner.address);
-      expect(sfaBal).to.equal(expectedBal.add(ethers.utils.parseEther(((25 * 1) + (10 * 5)).toString())))
+      expect(Number(sfaBal)).to.equal(Number(expectedBal.add(ethers.utils.parseEther(((25 * 1) + (10 * 5)).toString()))))
     });
 
 
@@ -134,30 +143,107 @@ describe("SFA Token", function () {
       await stake.stakeSolarHead(0);
 
       let stakeAmount = await stake.getStakedAmounts(owner.address);
-      expect(stakeAmount[0]).to.equal(1);
-      expect(stakeAmount[1]).to.equal(1);
+      expect(Number(stakeAmount[0])).to.equal(1);
+      expect(Number(stakeAmount[1])).to.equal(1);
       await time.increase(604800);
 
       await stake.withdraw();
       stakeAmount = await stake.getStakedAmounts(owner.address);
 
-      expect(stakeAmount[0]).to.equal(0);
-      expect(stakeAmount[1]).to.equal(0);
+      expect(Number(stakeAmount[0])).to.equal(0);
+      expect(Number(stakeAmount[1])).to.equal(0);
 
       const passBal = await solarPass.balanceOf(owner.address);
       const headBal = await solarHead.balanceOf(owner.address);
     
-      expect(passBal).to.equal(6);
-      expect(headBal).to.equal(26);
+      expect(Number(passBal)).to.equal(6);
+      expect(Number(headBal)).to.equal(26);
 
       var sfaBal = await sfa.balanceOf(owner.address);
       const expectedBal = ethers.utils.parseEther("11");
 
-      expect(sfaBal).to.equal(expectedBal);
+      expect(Number(sfaBal)).to.equal(Number(expectedBal));
       await time.increase(604800);
       await stake.claimRewards();
       sfaBal = await sfa.balanceOf(owner.address);
-      expect(sfaBal).to.equal(expectedBal);
+      expect(Number(sfaBal)).to.equal(Number(expectedBal));
+    });
+
+    it("Can withdraw All", async function () {
+      const { sfa, stake, solarHead, solarPass, owner, addy1, addy2 } = await loadFixture(setUp);
+      for (let i = 0; i < 26; i++) {
+        await solarHead.approve(stake.address, i);
+      }
+      await stake.batchStakeSolarHead(25, [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]);
+      for (let i = 0; i < 5; i++) {
+        await solarPass.approve(stake.address, i);
+      }
+      await stake.batchStakeSolarPass(5, [0,1,2,3,4]);
+
+      let stakeAmount = await stake.getStakedAmounts(owner.address);
+
+      await stake.withdraw();
+      stakeAmount = await stake.getStakedAmounts(owner.address);
+
+      expect(Number(stakeAmount[0])).to.equal(0);
+      expect(Number(stakeAmount[1])).to.equal(0);
+
+      const passBal = await solarPass.balanceOf(owner.address);
+      const headBal = await solarHead.balanceOf(owner.address);
+    
+      expect(Number(passBal)).to.equal(6);
+      expect(Number(headBal)).to.equal(26);
+    });
+
+
+    it("Can withdraw solar head", async function () {
+      const { sfa, stake, solarHead, solarPass, owner, addy1, addy2 } = await loadFixture(setUp);
+      await solarPass.approve(stake.address, 0);
+      await stake.stakeSolarPass(0);
+      await solarHead.approve(stake.address, 0);
+      await stake.stakeSolarHead(0);
+
+      let stakeAmount = await stake.getStakedAmounts(owner.address);
+      expect(Number(stakeAmount[0])).to.equal(1);
+      expect(Number(stakeAmount[1])).to.equal(1);
+      await time.increase(604800);
+
+      await stake.withdrawSolarHead();
+      stakeAmount = await stake.getStakedAmounts(owner.address);
+
+      expect(Number(stakeAmount[0])).to.equal(1);
+      expect(Number(stakeAmount[1])).to.equal(0);
+
+      const passBal = await solarPass.balanceOf(owner.address);
+      const headBal = await solarHead.balanceOf(owner.address);
+    
+      expect(Number(passBal)).to.equal(5);
+      expect(Number(headBal)).to.equal(26);
+    });
+
+    it("Can withdraw solar pass", async function () {
+      const { sfa, stake, solarHead, solarPass, owner, addy1, addy2 } = await loadFixture(setUp);
+      await solarPass.approve(stake.address, 0);
+      await stake.stakeSolarPass(0);
+      await solarHead.approve(stake.address, 0);
+      await stake.stakeSolarHead(0);
+
+      let stakeAmount = await stake.getStakedAmounts(owner.address);
+      expect(Number(stakeAmount[0])).to.equal(1);
+      expect(Number(stakeAmount[1])).to.equal(1);
+      await time.increase(604800);
+
+      await stake.withdrawSolarPass();
+      stakeAmount = await stake.getStakedAmounts(owner.address);
+
+      expect(Number(stakeAmount[0])).to.equal(0);
+      expect(Number(stakeAmount[1])).to.equal(1);
+
+      const passBal = await solarPass.balanceOf(owner.address);
+      const headBal = await solarHead.balanceOf(owner.address);
+    
+      expect(Number(passBal)).to.equal(6);
+      expect(Number(headBal)).to.equal(25);
     });
 
     

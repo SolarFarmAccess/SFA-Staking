@@ -4,7 +4,6 @@ pragma solidity ^0.8.18;
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import "hardhat/console.sol";
 
 contract SFAStaking is IERC721Receiver {
     
@@ -25,6 +24,13 @@ contract SFAStaking is IERC721Receiver {
     mapping(address => uint256) solarHeadStaked;
     mapping(address => StakingData[5]) solarPassStakedData;
     mapping(address => StakingData[25]) solarHeadStakedData;
+
+    event SolarHeadStaked(address user, uint256 amount);
+    event SolarPassStaked(address user, uint256 amount);
+    event RewardsClaimed(address user, uint256 amount);
+    event WithdrawalAll(address user);
+    event WithdrawalSolarHead(address user);
+    event WithdrawalSolarPass(address user);
 
     constructor(
         uint256 _maxSolarPass,
@@ -70,6 +76,7 @@ contract SFAStaking is IERC721Receiver {
         IERC721(solarHead).safeTransferFrom(msg.sender, address(this), _tokenId);
         solarHeadStaked[msg.sender] += 1;
         solarHeadStakedData[msg.sender][amountStaked] = StakingData(_tokenId, block.timestamp);
+        emit SolarHeadStaked(msg.sender, 1);
     }
 
     /**
@@ -92,6 +99,7 @@ contract SFAStaking is IERC721Receiver {
                 ++i;
             }
         }
+        emit SolarHeadStaked(msg.sender, _amount);
     }
 
 
@@ -105,6 +113,7 @@ contract SFAStaking is IERC721Receiver {
         IERC721(solarPass).safeTransferFrom(msg.sender, address(this), _tokenId);
         solarPassStaked[msg.sender] += 1;
         solarPassStakedData[msg.sender][amountStaked] = StakingData(_tokenId, block.timestamp);
+        emit SolarPassStaked(msg.sender, 1);
     }
 
      /**
@@ -127,6 +136,7 @@ contract SFAStaking is IERC721Receiver {
                 ++i;
             }
         }
+        emit SolarPassStaked(msg.sender, _amount);
     }
 
     /**
@@ -166,6 +176,7 @@ contract SFAStaking is IERC721Receiver {
         }
 
         IERC20(sfaToken).transfer(msg.sender, tokensEarned);
+        emit RewardsClaimed(msg.sender, tokensEarned);
     }
 
 
@@ -216,6 +227,77 @@ contract SFAStaking is IERC721Receiver {
         }
 
         IERC20(sfaToken).transfer(msg.sender, tokensEarned);
+        emit WithdrawalAll(msg.sender);
+    }
+
+     /**
+     * @notice withdraws users staked SolarHead. Additonally, claims
+     * all SFA Token rewards for the user.
+     */
+    function withdrawSolarHead() external {
+
+        address _solarHead = solarHead;
+
+        uint256 solarHeadsStaked = solarHeadStaked[msg.sender];
+
+        solarHeadStaked[msg.sender] = 0;
+
+        uint256 tokensEarned;
+        uint256 currTime = block.timestamp;
+        uint32 _payoutPeriod = payoutPeriod;
+        uint256 stakedTime;
+        uint256 duration;
+
+        uint256 i = 0;
+
+        while(i < solarHeadsStaked) {
+            stakedTime = solarHeadStakedData[msg.sender][i].timestamp;
+            duration = currTime - stakedTime;
+            tokensEarned += (duration / _payoutPeriod) * 1 ether;
+            solarHeadStakedData[msg.sender][i].timestamp = 0;
+            IERC721(_solarHead).safeTransferFrom(address(this), msg.sender, solarHeadStakedData[msg.sender][i].tokenId);
+            unchecked {
+                ++i;
+            }
+        }
+
+        IERC20(sfaToken).transfer(msg.sender, tokensEarned);
+        emit WithdrawalSolarHead(msg.sender);
+    }
+
+     /**
+     * @notice withdraws users staked Solar Passes. Additonally, claims
+     * all SFA Token rewards for the user.
+     */
+    function withdrawSolarPass() external {
+
+        address _solarPass = solarPass;
+
+        uint256 solarPassesStaked = solarPassStaked[msg.sender];
+
+        solarPassStaked[msg.sender] = 0;
+
+        uint256 tokensEarned;
+        uint256 currTime = block.timestamp;
+        uint32 _payoutPeriod = payoutPeriod;
+        uint256 stakedTime;
+        uint256 duration;
+
+        uint256 i = 0;
+
+        while(i < solarPassesStaked) {
+            stakedTime = solarPassStakedData[msg.sender][i].timestamp;
+            duration = currTime - stakedTime;
+            tokensEarned += (duration / _payoutPeriod) * 10 ether;
+            solarPassStakedData[msg.sender][i].timestamp = 0;
+            IERC721(_solarPass).safeTransferFrom(address(this), msg.sender, solarPassStakedData[msg.sender][i].tokenId);
+            unchecked {
+                ++i;
+            }
+        }
+
+        IERC20(sfaToken).transfer(msg.sender, tokensEarned);
+        emit WithdrawalSolarPass(msg.sender);
     }
 
      /**
